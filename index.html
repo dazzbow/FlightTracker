@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flight Tracker - Trawden</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    #flight-info {
+      margin-top: 20px;
+    }
+    #waiting img {
+      width: 200px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Nearby Flight Tracker - Trawden</h1>
+  <div id="flight-info"></div>
+  <div id="waiting" style="display: none;">
+    <p>Waiting for a plane to pass over :-)</p>
+    <img src="https://upload.wikimedia.org/wikipedia/commons/3/3b/Airplane_silhouette.png" alt="Plane"/>
+  </div>
+
+  <script>
+    const CENTER_LAT = 53.8456; // Trawden, Lancashire
+    const CENTER_LON = -2.1328;
+    const RADIUS_MILES = 2;
+    const API_URL = "https://opensky-network.org/api/states/all";
+
+    function toRadians(deg) {
+      return deg * (Math.PI / 180);
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 3958.8;
+      const dLat = toRadians(lat2 - lat1);
+      const dLon = toRadians(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    async function fetchFlightData() {
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+
+        const flights = data.states || [];
+        const nearbyFlights = flights.filter(flight => {
+          const lat = flight[6];
+          const lon = flight[5];
+          if (lat == null || lon == null) return false;
+          return haversine(CENTER_LAT, CENTER_LON, lat, lon) <= RADIUS_MILES;
+        });
+
+        const infoDiv = document.getElementById('flight-info');
+        const waitingDiv = document.getElementById('waiting');
+        infoDiv.innerHTML = "";
+
+        if (nearbyFlights.length > 0) {
+          waitingDiv.style.display = 'none';
+          const flight = nearbyFlights[0];
+          const html = `
+            <h2>✈️ A plane is flying overhead!</h2>
+            <p><strong>Flight Number:</strong> ${flight[1]}</p>
+            <p><strong>Airline:</strong> ${flight[7] || "N/A"}</p>
+            <p><strong>From:</strong> ${flight[11] || "Unknown"}</p>
+            <p><strong>To:</strong> ${flight[12] || "Unknown"}</p>
+            <p><strong>Altitude:</strong> ${(flight[13] || 0).toFixed(0)} m</p>
+          `;
+          infoDiv.innerHTML = html;
+        } else {
+          waitingDiv.style.display = 'block';
+        }
+      } catch (error) {
+        console.error("Failed to fetch flight data:", error);
+      }
+    }
+
+    setInterval(fetchFlightData, 5000);
+    fetchFlightData();
+  </script>
+</body>
+</html>
